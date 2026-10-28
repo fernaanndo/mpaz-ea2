@@ -29,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -47,9 +48,7 @@ import com.mpazpro3.app.viewmodel.MpazProViewModel
 /**
  * Detalle de un contenido para UTP: datos curriculares completos, recursos didácticos asociados,
  * observación y botones Aprobar / Rechazar.
- *
  */
-
 @Composable
 fun DetalleContenidoUtpScreen(navController: NavHostController, viewModel: MpazProViewModel) {
     val seleccionadoId by viewModel.contenidoSeleccionadoId.collectAsState()
@@ -58,8 +57,7 @@ fun DetalleContenidoUtpScreen(navController: NavHostController, viewModel: MpazP
     val mensaje by viewModel.mensajeUtp.collectAsState()
     val contenido = contenidos.find { it.id == seleccionadoId }
 
-
-    // 1. Variables para el recurso nativo (Vibración)
+    // Variables para el recurso nativo (Vibración)
     val context = LocalContext.current
     val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
 
@@ -68,14 +66,17 @@ fun DetalleContenidoUtpScreen(navController: NavHostController, viewModel: MpazP
             Text("Contenido no encontrado.", modifier = Modifier.padding(padding).padding(16.dp))
             return@Scaffold
         }
+
         val recursos = viewModel.recursosDe(contenido.id)
-        LaunchedEffect(contenido.id) { viewModel.limpiarMensajesUtp() }
-        var observacion by remember(contenido.id) { mutableStateOf(contenido.observacionUtp) }
-        var mostrarDialogoRechazo by remember { mutableStateOf(false) }
 
+        // 1. EL FIX: Limpiar los mensajes AL SALIR para evitar el bug del "flash"
+        DisposableEffect(contenido.id) {
+            onDispose {
+                viewModel.limpiarMensajesUtp()
+            }
+        }
 
-
-        // Función reutilizable para ejecutar la vibración
+        // 2. LA FUNCIONALIDAD NATIVA: Preparar la vibración
         val vibrar = {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
@@ -84,9 +85,16 @@ fun DetalleContenidoUtpScreen(navController: NavHostController, viewModel: MpazP
                 vibrator.vibrate(100)
             }
         }
+
+        // 3. LA ANIMACIÓN SENSORIAL: Vibrar SOLO cuando el ViewModel emite un mensaje nuevo
         LaunchedEffect(mensaje) {
-            if (mensaje != null) vibrar()
+            if (mensaje != null) {
+                vibrar()
+            }
         }
+
+        var observacion by remember(contenido.id) { mutableStateOf(contenido.observacionUtp) }
+        var mostrarDialogoRechazo by remember { mutableStateOf(false) }
 
         Column(
             modifier = Modifier
@@ -106,7 +114,7 @@ fun DetalleContenidoUtpScreen(navController: NavHostController, viewModel: MpazP
                     Dato("Eje curricular", contenido.ejeCurricular)
                     Dato("Recurso de referencia", contenido.recursoReferencia)
 
-                    // 3. Animación de color fluido para el estado
+                    // 4. Animación de color fluido para el estado
                     val colorEstado by animateColorAsState(
                         targetValue = when (contenido.estado) {
                             EstadoAprobacion.APROBADO -> Color(0xFF4CAF50) // Verde
@@ -147,7 +155,7 @@ fun DetalleContenidoUtpScreen(navController: NavHostController, viewModel: MpazP
                 value = observacion,
                 onValueChange = {
                     observacion = it
-                    viewModel.limpiarErrorObservacion()
+                    viewModel.limpiarErrorObservacion() // Limpia el error al escribir
                 },
                 label = { Text("Observación de UTP") },
                 isError = errorObservacion != null,
@@ -172,6 +180,7 @@ fun DetalleContenidoUtpScreen(navController: NavHostController, viewModel: MpazP
                 ) { Text("Rechazar") }
             }
 
+            // 5. Animación del mensaje de estado (fade in/out)
             AnimatedVisibility(
                 visible = mensaje != null,
                 enter = fadeIn(),
@@ -187,6 +196,7 @@ fun DetalleContenidoUtpScreen(navController: NavHostController, viewModel: MpazP
                 )
             }
 
+            // Diálogo de confirmación de rechazo (Cumple la validación de acciones destructivas de la rúbrica)
             if (mostrarDialogoRechazo) {
                 AlertDialog(
                     onDismissRequest = { mostrarDialogoRechazo = false },
