@@ -1,6 +1,17 @@
-# MPAZ PRO 3° — Proyecto base (Sección 007, San Bernardo)
+# MPAZ PRO 3° — Módulo Jefatura UTP (Sección 007, San Bernardo)
 
-Proyecto Android base para el caso de Vinculación con el Medio **"MPAZ PRO 3°: Apoyo didáctico y seguimiento del aprendizaje"** de la Escuela Escritora Marcela Paz. Es el punto de partida común de todos los equipos de la sección: trae la estructura, las pantallas de cada módulo y perfil, la navegación y la persistencia configurada. **La lógica de negocio del caso no está implementada**: esa es la parte que construye cada equipo.
+Proyecto Android para el caso de Vinculación con el Medio **"MPAZ PRO 3°: Apoyo didáctico y seguimiento del aprendizaje"** de la Escuela Escritora Marcela Paz. Parte del proyecto base común de la sección, que trae la estructura, las pantallas de cada módulo y perfil, y la navegación. Este equipo implementó el módulo de **Jefatura UTP** (RF-01 y RF-02) con persistencia local en Room. Los demás módulos los implementan otros equipos de la sección.
+
+## Integrantes
+
+| Integrante        | GitHub | Aporte principal |
+|-------------------|---|---|
+| Fernando Catalán  | fernaanndo | Persistencia con Room (Entity, DAO, Database, datos iniciales) |
+| Jean Darius       | Jeanrenel92 | Repository, conexión ViewModel–Room y filtros RF-02 |
+| Felipe Cassaretto | FelipeCassaretto | Validaciones RF-01, regla RN-04, AlertDialog y mensajes |
+| Bayron Cerda      | B4yr0n-web | Recurso nativo (vibración) y animaciones |
+
+**Repositorio:** https://github.com/fernaanndo/mpaz-ea2
 
 Documentación del caso (carpeta `docs/`):
 
@@ -13,7 +24,7 @@ Documentación del caso (carpeta `docs/`):
 2. Android Studio → **File > Open…** → seleccionar la carpeta que contiene `settings.gradle.kts`.
 3. Esperar el Gradle Sync (la primera vez necesita internet).
 4. Ejecutar ▶ **Run 'app'**.
-5. En el login, usar **"Modo desarrollo"** para entrar con cualquiera de los tres perfiles (el login real es tarea del equipo).
+5. En el login, presionar **"Entrar como Jefatura UTP"** (Modo desarrollo). El login real (RF-00) le corresponde a otro equipo.
 
 Si Android Studio sugiere actualizar Gradle o el Android Gradle Plugin, **no aceptar**: las versiones están fijadas para que todos los equipos usen exactamente las mismas.
 
@@ -26,6 +37,41 @@ Usuarios de prueba (en `data/MockData.kt`, para cuando implementen el login):
 | Estudiante | est001 | 1234 |
 
 La forma en que se autentica el estudiante está pendiente de confirmar con el CITT.
+
+## Requerimientos implementados
+
+**RF-01 · Aprobar o rechazar contenido (Jefatura UTP)**
+- Desde el detalle de un contenido, UTP puede aprobarlo o rechazarlo.
+- Para rechazar es obligatorio escribir el motivo: si está vacío, el error aparece bajo el campo y no se guarda nada.
+- Antes de rechazar se pide confirmación con un diálogo.
+- RN-04: no se puede aprobar una segunda unidad de la misma asignatura.
+- Se muestra un mensaje con el resultado de la acción.
+
+**RF-02 · Registrar y consultar el estado de aprobación**
+- El estado (Pendiente, Aprobado, Rechazado) y la observación de UTP se guardan en Room y se mantienen al cerrar la app.
+- La lista de contenidos se puede filtrar por asignatura y por estado; si no hay resultados se indica en pantalla.
+
+**Arquitectura:** UI (Compose) → `MpazProViewModel` (StateFlow) → `ContenidoRepository` → `ContenidoDao` → Room (`AppDatabase`).
+
+**Cómo probarlo:** Entrar como Jefatura UTP → abrir un contenido → aprobar o rechazar → cerrar la app y volver a abrirla para comprobar que el estado se mantiene.
+
+## Recurso nativo: vibración
+
+**Qué hace:** cuando UTP aprueba o rechaza un contenido y la acción se completa, el dispositivo vibra brevemente (100 ms).
+
+**Por qué es pertinente al caso:** confirma de forma física que la decisión quedó registrada, sin depender solo de mirar la pantalla. Respeta las restricciones del caso, que prohíbe cámara, GPS, micrófono y datos biométricos: la vibración no usa ninguno de ellos ni recoge datos del usuario.
+
+**Permiso:** `android.permission.VIBRATE` en `AndroidManifest.xml`. Es un permiso normal, por lo que no se solicita al usuario en tiempo de ejecución.
+
+**Integración:** `DetalleContenidoUtpScreen.kt`. La vibración se dispara con `LaunchedEffect(mensaje)` cuando el ViewModel publica el resultado, por lo que no vibra si la validación falla. Usa `VibrationEffect` en Android 8.0+ y el método anterior en versiones antiguas (minSdk 24).
+
+**Nota:** el emulador no vibra; para verlo se necesita un dispositivo físico.
+
+## Animaciones y componentes interactivos
+
+- `AnimatedVisibility` para mostrar el mensaje de resultado.
+- `animateColorAsState` para cambiar el color del estado (gris, verde o rojo).
+- Listas desplegables para los filtros y `AlertDialog` para confirmar el rechazo.
 
 ## Stack
 
@@ -50,7 +96,8 @@ El botón atrás nativo de Android funciona solo (lo maneja el NavHost). La flec
 |---|---|
 | `model/` | `Contenido`, `RecursoDidactico`, `Actividad`, `Asignacion`, `Estudiante`, `SeguimientoAvance`, `InformeDocente`, `Usuario`, `Perfil` y sus enums. Corresponden a las entidades del caso. |
 | `data/` | `MockData.kt`: datos y textos pedagógicos ficticios de ejemplo. |
-| `data/local/` | `PersistenciaPendiente.kt`: guía de qué entidades, DAOs y base de datos crear con Room. |
+| `data/local/` | `ContenidoEntity`, `ContenidoDao`, `AppDatabase` (Room) y `DatosIniciales` (carga los contenidos de ejemplo si la tabla está vacía). |
+| `data/repository/` | `ContenidoRepository`: único acceso a los datos de contenidos desde el ViewModel. |
 | `viewmodel/` | `MpazProViewModel`: un solo ViewModel compartido. Todas las funciones pendientes están marcadas con `TODO(equipo)`. |
 | `navigation/` | `AppNavigation`: rutas, NavHost, ingreso por perfil y cierre de sesión. |
 | `ui/components/` | `BarraSuperior` (flecha atrás y cerrar sesión) y `SelectorDesplegable` (lista desplegable reutilizable). |
@@ -76,7 +123,7 @@ El botón atrás nativo de Android funciona solo (lo maneja el NavHost). La flec
 | Experiencia del estudiante | Conservar el progreso y confirmar la finalización | `MaterialScreen`, `InicioEstudianteScreen` | `confirmarMaterialRevisado()`, `progreso()` |
 | Informe pedagógico | Generar informe (rendimiento, fortalezas, aspectos a reforzar) | `InformeDocenteScreen` | `generarInforme()` |
 | Informe pedagógico | Validación docente antes de considerarlo definitivo | `InformeDocenteScreen` | `validarInforme()` |
-| Persistencia | Guardar datos y progreso en el dispositivo | — | Room: ver `data/local/PersistenciaPendiente.kt` |
+| Persistencia | Guardar datos y progreso en el dispositivo | — | Room: `ContenidoEntity`, `ContenidoDao`, `AppDatabase` (contenidos UTP) |
 
 **Reglas de negocio que el equipo debe hacer cumplir:**
 
@@ -90,8 +137,8 @@ Para ver todo lo pendiente: **Edit > Find > Find in Files** (Ctrl+Shift+F / Cmd+
 ## Qué pasa hoy al ejecutar la app (es intencional)
 
 - **Ingresar:** el login siempre rechaza. Hay que entrar con "Modo desarrollo".
-- **Listas:** se muestran todos los contenidos y actividades, sin filtrar (por estado, curso o tipo).
-- **Acciones:** aprobar, rechazar, asignar, responder, enviar la evaluación, generar o validar un informe no cambian nada.
+- **Listas:** la lista de contenidos de UTP se filtra por asignatura y estado. Las demás listas muestran todos los contenidos y actividades, sin filtrar (por curso o tipo).
+- **Acciones:** aprobar y rechazar contenidos (UTP) funcionan y se guardan en Room. Asignar, responder, enviar la evaluación, generar o validar un informe todavía no cambian nada.
 - **Avance, retroalimentación e intentos:** el avance aparece en 0 %, la retroalimentación de los desafíos y el conteo de intentos aparecen como pendientes, y la revisión de respuestas aparece vacía.
 
 ## Orden sugerido de trabajo
